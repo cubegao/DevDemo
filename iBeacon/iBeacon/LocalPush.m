@@ -69,7 +69,6 @@ static LocalPush *_instance = nil;
             
             NSTimeInterval time =  [[NSDate date] timeIntervalSince1970];
             NSString *times = [NSString stringWithFormat:@"%lld",(long long int)time];
-            NSLog(@"%@",times);
             content.userInfo = @{@"key":times};
             
             if (self.badgeNumber > 0) {
@@ -80,7 +79,7 @@ static LocalPush *_instance = nil;
             if (delayTimeInterval > 0) {
                 trigger = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delayTimeInterval repeats:NO];
             }
-            UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:NSStringFromClass(self.class) content:content trigger:trigger];
+            UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:times content:content trigger:trigger];
             
             [center addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
                 

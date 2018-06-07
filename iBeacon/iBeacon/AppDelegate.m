@@ -9,11 +9,19 @@
 #import "AppDelegate.h"
 #import <UserNotifications/UserNotifications.h>
 #import "LocalPush.h"
+#import <CoreBluetooth/CoreBluetooth.h>
+#import <CoreLocation/CoreLocation.h>
 
 #define kKeyWindow [UIApplication sharedApplication].keyWindow
 
+#define Device_UUID @"29EA3478-2C37-4BAA-81C9-01FA5889AF2B"
+#define kNotificationName @"kNotificationNamePostIbeacon"
 
-@interface AppDelegate ()
+
+@interface AppDelegate ()<CLLocationManagerDelegate>
+
+@property (nonatomic , strong) CLLocationManager *locationManager;
+@property (nonatomic , strong) CLBeaconRegion *beaconRegion;
 
 @end
 
@@ -24,6 +32,8 @@
     // Override point for customization after application launch.
     
     [self registerLocalPush];
+    
+    [self receive];
     return YES;
 }
 
@@ -54,6 +64,107 @@
         [ac addAction:action];
         [self.window.rootViewController presentViewController:ac animated:YES completion:nil];
     }
+}
+
+
+
+
+#pragma mark - beacon
+- (CLLocationManager *)locationManager {
+    if (!_locationManager) {
+        _locationManager = [[CLLocationManager alloc] init];
+        _locationManager.delegate = self;
+        _locationManager.desiredAccuracy = kCLLocationAccuracyBest;
+        _locationManager.activityType = CLActivityTypeFitness;
+        _locationManager.distanceFilter = kCLDistanceFilterNone;
+    }
+    return _locationManager;
+}
+
+- (CLBeaconRegion *)beaconRegion {
+    if (!_beaconRegion) {
+        _beaconRegion = [[CLBeaconRegion alloc] initWithProximityUUID:[[NSUUID alloc] initWithUUIDString:Device_UUID] major:111 minor:222 identifier:@"test"];
+        _beaconRegion.notifyEntryStateOnDisplay = YES;
+        _beaconRegion.notifyOnEntry = YES;
+        _beaconRegion.notifyOnExit = YES;
+    }
+    return _beaconRegion;
+}
+
+
+- (void)receive
+{
+    
+    BOOL availableMonitor = [CLLocationManager isMonitoringAvailableForClass:[CLBeaconRegion class]];
+    
+    if (availableMonitor) {
+        CLAuthorizationStatus authorizationStatus = [CLLocationManager authorizationStatus];
+        switch (authorizationStatus) {
+            case kCLAuthorizationStatusNotDetermined:
+                [self.locationManager requestAlwaysAuthorization];
+                break;
+            case kCLAuthorizationStatusRestricted:
+            case kCLAuthorizationStatusDenied:
+                NSLog(@"受限制或者拒绝");
+                break;
+            case kCLAuthorizationStatusAuthorizedAlways:
+            case kCLAuthorizationStatusAuthorizedWhenInUse:{
+                [self.locationManager startMonitoringForRegion:self.beaconRegion];
+                [self.locationManager startRangingBeaconsInRegion:self.beaconRegion];
+            }
+                break;
+        }
+    } else {
+        NSLog(@"该设备不支持 CLBeaconRegion 区域检测");
+    }
+    
+}
+
+
+
+// Monitoring成功对应回调函数
+- (void)locationManager:(CLLocationManager *)manager didStartMonitoringForRegion:(CLRegion *)region
+{
+}
+
+// 设备进入该区域时的回调
+- (void)locationManager:(CLLocationManager *)manager didEnterRegion:(CLRegion *)region
+{
+    [[LocalPush shareInstance] pushLocalNotificationWithTitle:@"" body:@"设备进入该区域了" soundName:nil delayTimeInterval:0];
+    
+}
+
+// 设备退出该区域时的回调 大约20S延时
+- (void)locationManager:(CLLocationManager *)manager didExitRegion:(CLRegion *)region
+{
+    [[LocalPush shareInstance] pushLocalNotificationWithTitle:@"" body:@"设备离开该区域了" soundName:nil delayTimeInterval:0];
+    
+}
+
+- (void)locationManager:(CLLocationManager *)manager monitoringDidFailForRegion:(nullable CLRegion *)region withError:(NSError *)error
+{
+    
+}
+
+// Ranging成功对应回调函数
+/// 检测到区域内的iBeacons时回调此函数，差不多1s刷新一次，这个方法会返回一个 CLBeacon 的数组，根据 CLBeacon 的 proximity 属性就可以判断设备和 beacon 之间的距离,proximity 属性有四个可能的值，unknown、immediate、near 和 far, 另外 CLBeacon 还有 accuracy 和 rssi 两个属性能提供更详细的距离数据
+- (void)locationManager:(CLLocationManager *)manager didRangeBeacons:(NSArray<CLBeacon *> *)beacons inRegion:(CLBeaconRegion *)region
+{
+    NSDictionary *dic = @{@"beacons":beacons,@"region":region};
+    [[NSNotificationCenter defaultCenter] postNotificationName:kNotificationName object:dic];
+}
+
+- (void)locationManager:(CLLocationManager *)manager rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region withError:(NSError *)error
+{
+    
+}
+
+
+// 屏幕点亮就会回调此函数
+- (void)locationManager:(CLLocationManager *)manager
+      didDetermineState:(CLRegionState)state forRegion:(CLRegion *)region
+{
+    NSLog(@"%ld-%@",state,region);
 }
 
 
